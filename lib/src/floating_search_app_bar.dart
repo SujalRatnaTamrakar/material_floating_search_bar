@@ -88,6 +88,9 @@ class FloatingSearchAppBar extends ImplicitlyAnimatedWidget {
   /// {@macro floating_search_bar.automaticallyImplyBackButton}
   final bool automaticallyImplyBackButton;
 
+  /// {@macro floating_search_bar.showSearchField}
+  final bool showSearchField;
+
   /// Hides the keyboard a [Scrollable] inside the [body] was scrolled and
   /// shows it again when the user scrolls to the top.
   final bool hideKeyboardOnDownScroll;
@@ -164,6 +167,7 @@ class FloatingSearchAppBar extends ImplicitlyAnimatedWidget {
     this.alwaysOpened = false,
     this.clearQueryOnClose = true,
     this.automaticallyImplyDrawerHamburger = true,
+    this.showSearchField = true,
     this.hideKeyboardOnDownScroll = false,
     this.automaticallyImplyBackButton = true,
     this.progress = 0.0,
@@ -259,7 +263,7 @@ class FloatingSearchAppBarState extends ImplicitlyAnimatedWidgetState<
 
   bool get hasActions => actions.isNotEmpty;
   List<Widget> get actions {
-    final actions = widget.actions ?? [FloatingSearchBarAction.searchToClear()];
+    final actions = widget.actions ?? [widget.showSearchField?FloatingSearchBarAction.searchToClear():SizedBox()];
     final showHamburger = widget.automaticallyImplyDrawerHamburger &&
         Scaffold.of(context).hasEndDrawer;
     return showHamburger
@@ -480,11 +484,20 @@ class FloatingSearchAppBarState extends ImplicitlyAnimatedWidgetState<
 
     final bar = GestureDetector(
       onTap: () {
-        if (isOpen) {
-          hasFocus = !hasFocus;
-          _input.moveCursorToEnd();
-        } else if (!isAppBar) {
-          isOpen = true;
+        if (widget.showSearchField) {
+          if (isOpen) {
+            hasFocus = !hasFocus;
+            if (hasFocus) {
+              close();
+            }
+            _input.moveCursorToEnd();
+          } else if (!isAppBar) {
+            isOpen = true;
+          } else if (!isOpen){
+            open();
+          }
+        }else{
+          return null;
         }
       },
       child: Material(
@@ -541,7 +554,7 @@ class FloatingSearchAppBarState extends ImplicitlyAnimatedWidgetState<
             clipBehavior: Clip.none,
             alignment: AlignmentDirectional.centerStart,
             children: <Widget>[
-              _buildInputField(),
+              widget.showSearchField?_buildInputField():SizedBox(),
               buildGradient(isLeft: true),
               buildGradient(isLeft: false),
             ],
