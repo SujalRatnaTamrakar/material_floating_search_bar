@@ -1,21 +1,22 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'
+    hide ImplicitlyAnimatedWidget, ImplicitlyAnimatedWidgetState;
 
 import 'implicitly_animated_widget.dart';
 
 // ignore_for_file: public_member_api_docs
 
-class ImplicitAnimationBuilder<T> extends ImplicitAnimation {
+class ImplicitAnimationBuilder<T> extends ImplicitlyAnimatedWidget {
   final T Function(T a, T b, double t) lerp;
   final T value;
-  final Widget Function(BuildContext context, T value, Widget child) builder;
-  final Widget child;
+  final Widget Function(BuildContext context, T value, Widget? child) builder;
+  final Widget? child;
   const ImplicitAnimationBuilder({
-    Key key,
-    @required Duration duration,
+    Key? key,
+    required Duration duration,
     Curve curve = Curves.linear,
-    @required this.lerp,
-    @required this.value,
-    @required this.builder,
+    required this.lerp,
+    required this.value,
+    required this.builder,
     this.child,
   }) : super(key, duration, curve);
 
@@ -25,7 +26,7 @@ class ImplicitAnimationBuilder<T> extends ImplicitAnimation {
 }
 
 class _ImplicitAnimationBuilderState<T>
-    extends ImplicitAnimationState<T, ImplicitAnimationBuilder<T>> {
+    extends ImplicitlyAnimatedWidgetState<T, ImplicitAnimationBuilder<T>> {
   @override
   T get newValue => widget.value;
 
@@ -33,7 +34,6 @@ class _ImplicitAnimationBuilderState<T>
   T lerp(T a, T b, double t) => widget.lerp(a, b, t);
 
   @override
-  Widget builder(BuildContext context, T value) {
-    return widget.builder(context, value, widget.child);
-  }
+  Widget build(BuildContext context) =>
+      widget.builder(context, value, widget.child);
 }

@@ -1,11 +1,12 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:implicitly_animated_reorderable_list/implicitly_animated_reorderable_list.dart';
 import 'package:implicitly_animated_reorderable_list/transitions.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:provider/provider.dart';
-
 import 'package:material_floating_search_bar/material_floating_search_bar.dart';
+import 'package:provider/provider.dart';
 
 import 'place.dart';
 import 'search_model.dart';
@@ -17,17 +18,11 @@ void main() {
     ),
   );
 
-  runApp(MaterialFloatingSearchBarExample());
-}
-
-class MaterialFloatingSearchBarExample extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  runApp(
+    MaterialApp(
       title: 'Material Floating Search Bar Example',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'Montserrat',
+      theme: ThemeData.light().copyWith(
         iconTheme: const IconThemeData(
           color: Color(0xFF4d4d4d),
         ),
@@ -35,16 +30,48 @@ class MaterialFloatingSearchBarExample extends StatelessWidget {
           elevation: 4,
         ),
       ),
-      home: ChangeNotifierProvider(
-        create: (_) => SearchModel(),
-        child: const Home(),
+      home: Directionality(
+        textDirection: TextDirection.ltr,
+        child: ChangeNotifierProvider(
+          create: (_) => SearchModel(),
+          child: const Home(),
+        ),
       ),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Flutter Demo',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: Home(),
     );
   }
 }
 
-class Home extends StatelessWidget {
-  const Home({Key key}) : super(key: key);
+class Home extends StatefulWidget {
+  const Home({Key? key}) : super(key: key);
+
+  @override
+  _HomeState createState() => _HomeState();
+}
+
+class _HomeState extends State<Home> {
+  final controller = FloatingSearchBarController();
+
+  int _index = 0;
+  int get index => _index;
+  set index(int value) {
+    _index = min(value, 2);
+    _index == 2 ? controller.hide() : controller.show();
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,19 +82,11 @@ class Home extends StatelessWidget {
           width: 200,
         ),
       ),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          buildMap(),
-          buildBottomNavigationBar(),
-          buildFabs(),
-          buildSearchBar(context),
-        ],
-      ),
+      body: buildSearchBar(),
     );
   }
 
-  Widget buildSearchBar(BuildContext context) {
+  Widget buildSearchBar() {
     final actions = [
       FloatingSearchBarAction(
         showIfOpened: false,
@@ -84,49 +103,80 @@ class Home extends StatelessWidget {
     final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
 
     return Consumer<SearchModel>(
-      builder: (context, model, _) {
-        return FloatingSearchBar(
-          backgroundColor: Colors.white,
-          clearQueryOnClose: true,
-          hint: 'Search for a new Place...',
-          transitionDuration: const Duration(milliseconds: 800),
-          transitionCurve: Curves.easeInOutCubic,
-          physics: const BouncingScrollPhysics(),
-          axisAlignment: isPortrait ? 0.0 : -1.0,
-          openAxisAlignment: 0.0,
-          maxWidth: isPortrait ? 600 : 500,
-          actions: actions,
-          progress: model.isLoading,
-          debounceDelay: const Duration(milliseconds: 500),
-          onQueryChanged: model.onQueryChanged,
-          transition: SlideFadeFloatingSearchBarTransition(translation: 48.0),
-          builder: (context, transition) {
-            return Material(
-              color: Colors.white,
-              elevation: 4.0,
-              borderRadius: BorderRadius.circular(8),
-              child: ImplicitlyAnimatedList<Place>(
-                shrinkWrap: true,
-                items: model.suggestions.take(6).toList(),
-                physics: const NeverScrollableScrollPhysics(),
-                areItemsTheSame: (a, b) => a == b,
-                itemBuilder: (context, animation, place, i) {
-                  return SizeFadeTransition(
-                    animation: animation,
-                    child: buildItem(context, place),
-                  );
-                },
-                updateItemBuilder: (context, animation, place) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: buildItem(context, place),
-                  );
-                },
-              ),
+      builder: (context, model, _) => FloatingSearchBar(
+        automaticallyImplyBackButton: false,
+        controller: controller,
+        clearQueryOnClose: true,
+        hint: 'חיפוש...',
+        iconColor: Colors.grey,
+        transitionDuration: const Duration(milliseconds: 800),
+        transitionCurve: Curves.easeInOutCubic,
+        physics: const BouncingScrollPhysics(),
+        axisAlignment: isPortrait ? 0.0 : -1.0,
+        openAxisAlignment: 0.0,
+        actions: actions,
+        progress: model.isLoading,
+        debounceDelay: const Duration(milliseconds: 500),
+        onQueryChanged: model.onQueryChanged,
+        onKeyEvent: (KeyEvent keyEvent) {
+          if (keyEvent.logicalKey == LogicalKeyboardKey.escape) {
+            controller.query = "";
+            controller.close();
+          }
+        },
+        scrollPadding: EdgeInsets.zero,
+        transition: CircularFloatingSearchBarTransition(spacing: 16),
+        builder: (context, _) => buildExpandableBody(model),
+        body: buildBody(),
+      ),
+    );
+  }
+
+  Widget buildBody() {
+    return Column(
+      children: [
+        Expanded(
+          child: IndexedStack(
+            index: min(index, 2),
+            children: const [
+              Map(),
+              SomeScrollableContent(),
+              FloatingSearchAppBarExample(),
+            ],
+          ),
+        ),
+        buildBottomNavigationBar(),
+      ],
+    );
+  }
+
+  Widget buildExpandableBody(SearchModel model) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        clipBehavior: Clip.antiAlias,
+        child: ImplicitlyAnimatedList<Place>(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          items: model.suggestions,
+          insertDuration: const Duration(milliseconds: 700),
+          itemBuilder: (context, animation, item, i) {
+            return SizeFadeTransition(
+              animation: animation,
+              child: buildItem(context, item),
             );
           },
-        );
-      },
+          updateItemBuilder: (context, animation, item) {
+            return FadeTransition(
+              opacity: animation,
+              child: buildItem(context, item),
+            );
+          },
+          areItemsTheSame: (a, b) => a == b,
+        ),
+      ),
     );
   }
 
@@ -141,7 +191,7 @@ class Home extends StatelessWidget {
       children: [
         InkWell(
           onTap: () {
-            FloatingSearchBar.of(context).close();
+            FloatingSearchBar.of(context)?.close();
             Future.delayed(
               const Duration(milliseconds: 500),
               () => model.clear(),
@@ -173,7 +223,7 @@ class Home extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         place.level2Address,
-                        style: textTheme.bodyText2.copyWith(color: Colors.grey.shade600),
+                        style: textTheme.bodyText2?.copyWith(color: Colors.grey.shade600),
                       ),
                     ],
                   ),
@@ -188,22 +238,90 @@ class Home extends StatelessWidget {
     );
   }
 
+  Widget buildBottomNavigationBar() {
+    return BottomNavigationBar(
+      onTap: (value) => index = value,
+      currentIndex: index,
+      elevation: 16,
+      type: BottomNavigationBarType.fixed,
+      showUnselectedLabels: true,
+      backgroundColor: Colors.white,
+      selectedItemColor: Colors.blue,
+      selectedFontSize: 11.5,
+      unselectedFontSize: 11.5,
+      unselectedItemColor: const Color(0xFF4d4d4d),
+      items: const [
+        BottomNavigationBarItem(
+          icon: Icon(MdiIcons.homeVariantOutline),
+          label: 'Explore',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(MdiIcons.homeCityOutline),
+          label: 'Commute',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(MdiIcons.bookmarkOutline),
+          label: 'Saved',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(MdiIcons.plusCircleOutline),
+          label: 'Contribute',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(MdiIcons.bellOutline),
+          label: 'Updates',
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+}
+
+class Map extends StatelessWidget {
+  const Map({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        buildMap(),
+        buildFabs(),
+      ],
+    );
+  }
+
   Widget buildFabs() {
     return Align(
       alignment: AlignmentDirectional.bottomEnd,
       child: Padding(
-        padding: const EdgeInsetsDirectional.only(bottom: 72, end: 16),
+        padding: const EdgeInsetsDirectional.only(bottom: 16, end: 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FloatingActionButton(
-              onPressed: () {},
-              backgroundColor: Colors.white,
-              child: const Icon(Icons.gps_fixed, color: Color(0xFF4d4d4d)),
+            Builder(
+              builder: (context) => FloatingActionButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SearchBar(),
+                    ),
+                  );
+                },
+                backgroundColor: Colors.white,
+                child: const Icon(Icons.gps_fixed, color: Color(0xFF4d4d4d)),
+              ),
             ),
             const SizedBox(height: 16),
             FloatingActionButton(
               onPressed: () {},
+              heroTag: "öslkföl",
               backgroundColor: Colors.blue,
               child: const Icon(Icons.directions),
             ),
@@ -213,51 +331,88 @@ class Home extends StatelessWidget {
     );
   }
 
-  Widget buildBottomNavigationBar() {
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: BottomNavigationBar(
-        currentIndex: 0,
-        elevation: 16,
-        type: BottomNavigationBarType.fixed,
-        showUnselectedLabels: true,
-        backgroundColor: Colors.white,
-        selectedItemColor: Colors.blue,
-        selectedFontSize: 11.5,
-        unselectedFontSize: 11.5,
-        unselectedItemColor: const Color(0xFF4d4d4d),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(MdiIcons.homeVariantOutline),
-            title: Text('Explore'),
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(MdiIcons.homeCityOutline),
-            title: Text('Commute'),
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(MdiIcons.bookmarkOutline),
-            title: Text('Saved'),
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(MdiIcons.plusCircleOutline),
-            title: Text('Contribute'),
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(MdiIcons.bellOutline),
-            title: Text('Updates'),
-          ),
-        ],
+  Widget buildMap() {
+    return Image.asset(
+      'assets/map.jpg',
+      fit: BoxFit.cover,
+    );
+  }
+}
+
+class SearchBar extends StatefulWidget {
+  const SearchBar({
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  _SearchBarState createState() => _SearchBarState();
+}
+
+class _SearchBarState extends State<SearchBar> {
+  final FloatingSearchBarController controller = FloatingSearchBarController();
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: FloatingSearchBar(
+        controller: controller,
+        title: Text(
+          "Aschaffenburg",
+        ),
+        hint: 'Suche einen Ort',
+        builder: (context, _) {
+          return Container();
+        },
       ),
     );
   }
+}
 
-  Widget buildMap() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 52.0),
-      child: Image.asset(
-        'assets/map.jpg',
-        fit: BoxFit.cover,
+class SomeScrollableContent extends StatelessWidget {
+  const SomeScrollableContent({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return FloatingSearchBarScrollNotifier(
+      child: ListView.separated(
+        padding: const EdgeInsets.only(top: kToolbarHeight),
+        itemCount: 100,
+        separatorBuilder: (context, index) => const Divider(),
+        itemBuilder: (context, index) {
+          return ListTile(
+            title: Text('Item $index'),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class FloatingSearchAppBarExample extends StatelessWidget {
+  const FloatingSearchAppBarExample({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return FloatingSearchAppBar(
+      title: const Text('Title'),
+      transitionDuration: const Duration(milliseconds: 800),
+      color: Colors.greenAccent.shade100,
+      colorOnScroll: Colors.greenAccent.shade200,
+      body: ListView.separated(
+        padding: EdgeInsets.zero,
+        itemCount: 100,
+        separatorBuilder: (context, index) => const Divider(),
+        itemBuilder: (context, index) {
+          return ListTile(
+            title: Text('Item $index'),
+          );
+        },
       ),
     );
   }

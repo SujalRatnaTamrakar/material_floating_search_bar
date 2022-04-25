@@ -18,19 +18,32 @@ class FloatingSearchBarScrollNotifier extends StatelessWidget {
   /// when the user scrolls down and shown again when the user scrolls
   /// up.
   const FloatingSearchBarScrollNotifier({
-    Key key,
-    @required this.child,
+    Key? key,
+    required this.child,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
-        final metrics = notification.metrics;
-
+        ScrollMetrics metrics = notification.metrics;
         // Dispatch the notifcation only for vertical
         // scrollables.
         if (metrics.axis == Axis.vertical) {
+          // If the scroll notification is due to an "over-scroll" (stretch, or animating the release of a stretch)
+          // then force the scroll-metric to it's zero position (position the search bar at it's pinned position).
+          // This is to prevent the search bar from animating away, then back again when the stretch animation
+          // finishes.
+          if (metrics.pixels < 0 || metrics.pixels > metrics.maxScrollExtent) {
+            metrics = FixedScrollMetrics(
+              pixels: metrics.pixels < 0 ? 0 : metrics.maxScrollExtent,
+              axisDirection: metrics.axisDirection,
+              maxScrollExtent: metrics.maxScrollExtent,
+              minScrollExtent: metrics.minScrollExtent,
+              viewportDimension: metrics.viewportDimension,
+            );
+          }
+
           FloatingSearchBarScrollNotification(
             metrics,
             context,

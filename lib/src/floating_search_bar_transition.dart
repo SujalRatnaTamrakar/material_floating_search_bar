@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:material_floating_search_bar/src/search_bar_style.dart';
 
 import 'floating_search_bar.dart';
 import 'util/util.dart';
@@ -23,22 +24,24 @@ import 'widgets/widgets.dart';
 ///  * [SlideFadeFloatingSearchBarTransition], which fades and translate its
 ///    child.
 abstract class FloatingSearchBarTransition {
-  FloatingSearchBarState searchBar;
-  BuildContext get context => searchBar?.context;
-  Animation get animation => searchBar?.animation;
-  double get t => searchBar?.value;
+  late FloatingSearchBarState searchBar;
+  BuildContext get context => searchBar.context;
+  Animation get animation => searchBar.animation;
+  double get t => searchBar.v;
 
-  double get offset => searchBar?.offset ?? 0.0;
-  double get fullHeight => context?.height ?? height;
-  double get fullWidth => context?.width ?? 0.0;
-  double get height => searchBar?.height;
-  double get elevation => searchBar?.elevation;
-  EdgeInsetsGeometry get padding => searchBar?.padding;
-  EdgeInsetsGeometry get margin => searchBar?.margins;
-  Color get backgroundColor => searchBar?.backgroundColor;
-  BorderRadius get borderRadius => searchBar?.borderRadius;
-  double get maxWidth => searchBar?.maxWidth;
-  double get openMaxWidth => searchBar?.openMaxWidth;
+  FloatingSearchBarStyle get style => searchBar.style;
+
+  double get offset => searchBar.offset;
+  double get fullHeight => context.height ?? 0.0;
+  double get fullWidth => context.width ?? 0.0;
+  double get height => style.height;
+  double get elevation => style.elevation;
+  EdgeInsets get padding => style.padding.resolve(Directionality.of(context));
+  EdgeInsets get margin => style.margins.resolve(Directionality.of(context));
+  Color get backgroundColor => style.backgroundColor;
+  BorderRadius get borderRadius => style.borderRadius;
+  double? get maxWidth => style.maxWidth;
+  double? get openMaxWidth => style.openMaxWidth;
 
   bool get isBodyInsideSearchBar;
   Color get backdropColor => Colors.black38;
@@ -46,8 +49,19 @@ abstract class FloatingSearchBarTransition {
   double lerpHeight() => height;
   double lerpElevation() => elevation;
   double lerpInnerElevation() => 0.0;
-  double lerpMaxWidth() => lerpDouble(maxWidth, openMaxWidth, t);
-  double lerpInnerMaxWidth() => lerpMaxWidth();
+  double lerpWidth() {
+    if (maxWidth == null && openMaxWidth != null) {
+      return lerpDouble(fullWidth, openMaxWidth, t)!;
+    } else {
+      return lerpDouble(
+        maxWidth ?? fullWidth,
+        openMaxWidth ?? maxWidth ?? fullWidth,
+        t,
+      )!;
+    }
+  }
+
+  double lerpInnerWidth() => lerpWidth();
   EdgeInsetsGeometry lerpPadding() => padding;
   EdgeInsetsGeometry lerpMargin() => margin;
   Color lerpBackgroundColor() => backgroundColor;
@@ -57,7 +71,7 @@ abstract class FloatingSearchBarTransition {
   Widget buildDivider() => const SizedBox(height: 0);
   void onBodyScrolled() {}
 
-  void rebuild() => searchBar?.rebuild();
+  void rebuild() => searchBar.rebuild();
 
   @override
   // ignore: hash_and_equals
@@ -69,7 +83,7 @@ abstract class FloatingSearchBarTransition {
 /// which expands to eventually fill all of its available space,
 /// similar to the ones in Gmail or Google Maps.
 ///
-/// An example of this can be viewed [here](https://github.com/bnxm/material_floating_search_bar/blob/master/assets/expanding_example.gif):
+/// An example of this can be viewed [here](https://github.com/bxqm/material_floating_search_bar/blob/master/assets/expanding_example.gif):
 /// {@endtemplate}
 class ExpandingFloatingSearchBarTransition extends FloatingSearchBarTransition {
   /// The elevation of the bar to create a lift on scroll effect
@@ -78,7 +92,7 @@ class ExpandingFloatingSearchBarTransition extends FloatingSearchBarTransition {
   final double innerElevation;
 
   /// A divider to be shown between the bar and the body of the [FloatingSearchBar].
-  final Widget divider;
+  final Widget? divider;
 
   /// Creates a [FloatingSearchBarTransition]
   /// {@macro expanding_floating_search_bar_transition}
@@ -94,39 +108,45 @@ class ExpandingFloatingSearchBarTransition extends FloatingSearchBarTransition {
   Color get backdropColor => Colors.transparent;
 
   @override
-  double lerpHeight() => lerpDouble(height, fullHeight, t);
+  double lerpHeight() => lerpDouble(height, fullHeight, t)!;
 
   @override
-  double lerpMaxWidth() => lerpDouble(maxWidth, fullWidth, t);
+  double lerpWidth() => lerpDouble(maxWidth ?? fullWidth, fullWidth, t)!;
 
   @override
-  double lerpInnerMaxWidth() => lerpDouble(maxWidth, openMaxWidth, t);
+  double lerpInnerWidth() {
+    return lerpDouble(
+      maxWidth ?? fullWidth,
+      openMaxWidth ?? fullWidth,
+      t,
+    )!;
+  }
 
   @override
   double lerpInnerElevation() {
     return lerpDouble(
-        0.0, innerElevation, (offset / (innerElevation * 10)).clamp(0.0, 1.0));
+      0.0,
+      innerElevation,
+      (offset / (innerElevation * 10)).clamp(0.0, 1.0),
+    )!;
   }
 
   @override
   EdgeInsetsGeometry lerpPadding() {
-    final p = padding.resolve(Directionality.of(context));
-    final margin = this.margin.resolve(Directionality.of(context));
-
     return EdgeInsetsGeometry.lerp(
       padding,
-      EdgeInsets.only(left: p.left, right: p.right, top: margin.top),
+      padding.copyWith(top: margin.top),
       t,
-    );
+    )!;
   }
 
   @override
   EdgeInsetsGeometry lerpMargin() =>
-      EdgeInsetsGeometry.lerp(margin, EdgeInsets.zero, t);
+      EdgeInsetsGeometry.lerp(margin, EdgeInsets.zero, t)!;
 
   @override
   BorderRadius lerpBorderRadius() =>
-      BorderRadius.lerp(borderRadius, BorderRadius.zero, t);
+      BorderRadius.lerp(borderRadius, BorderRadius.zero, t)!;
 
   @override
   void onBodyScrolled() {
@@ -155,21 +175,19 @@ class ExpandingFloatingSearchBarTransition extends FloatingSearchBarTransition {
 abstract class OverlayingFloatingSearchBarTransition
     extends FloatingSearchBarTransition {
   /// The vertical spacing between the bar of the [FloatingSearchBar] and its body.
-  final double _spacing;
+  final double? _spacing;
 
   /// A divider to seperate the body of the [FloatingSearchBar] from the bar.
   ///
   /// Typically this gets revealed when the body has scrolled the amount specifieds
   /// by [spacing].
-  final Widget divider;
-  // ignore: public_member_api_docs
+  final Widget? divider;
   OverlayingFloatingSearchBarTransition({
-    double spacing,
+    double? spacing,
     this.divider,
   }) : _spacing = spacing;
 
-  double get spacing =>
-      _spacing ?? searchBar?.widget?.scrollPadding?.top ?? 0.0;
+  double get spacing => _spacing ?? searchBar.widget.scrollPadding.top;
 
   @override
   bool get isBodyInsideSearchBar => false;
@@ -209,7 +227,7 @@ abstract class OverlayingFloatingSearchBarTransition
         bottomRight: Radius.zero,
       ),
       scrollT,
-    );
+    )!;
   }
 
   @override
@@ -231,12 +249,12 @@ abstract class OverlayingFloatingSearchBarTransition
   }
 
   @override
-  bool operator ==(Object o) {
-    if (identical(this, o)) return true;
+  bool operator ==(dynamic other) {
+    if (identical(this, other)) return true;
 
-    return o is OverlayingFloatingSearchBarTransition &&
-        o.spacing == spacing &&
-        o.divider == divider;
+    return other is OverlayingFloatingSearchBarTransition &&
+        other.spacing == spacing &&
+        other.divider == divider;
   }
 
   @override
@@ -247,15 +265,15 @@ abstract class OverlayingFloatingSearchBarTransition
 /// {@template circular_floating_search_bar_transition}
 /// which clips its child in an expanding circle.
 ///
-/// An example of this can be viewed [here](https://github.com/bnxm/material_floating_search_bar/blob/master/assets/circular_example.gif):
+/// An example of this can be viewed [here](https://github.com/bxqm/material_floating_search_bar/blob/master/assets/circular_example.gif):
 /// {@endtemplate}
 class CircularFloatingSearchBarTransition
     extends OverlayingFloatingSearchBarTransition {
   /// Creates a [FloatingSearchBarTransition],
   /// {@macro circular_floating_search_bar_transition}
   CircularFloatingSearchBarTransition({
-    double spacing,
-    Widget divider,
+    double? spacing,
+    Widget? divider,
   }) : super(
           spacing: spacing,
           divider: divider,
@@ -282,7 +300,7 @@ class CircularFloatingSearchBarTransition
 /// {@template fade_in_floating_search_bar_transition}
 /// which fades and vertically translates its child.
 ///
-/// An example of this can be viewed [here](https://github.com/bnxm/material_floating_search_bar/blob/master/assets/slide_fade_example.gif)
+/// An example of this can be viewed [here](https://github.com/bxqm/material_floating_search_bar/blob/master/assets/slide_fade_example.gif)
 /// {@endtemplate}
 class SlideFadeFloatingSearchBarTransition
     extends OverlayingFloatingSearchBarTransition {
@@ -291,8 +309,8 @@ class SlideFadeFloatingSearchBarTransition
   /// Creates a [FloatingSearchBarTransition],
   /// {@macro fade_in_floating_search_bar_transition}
   SlideFadeFloatingSearchBarTransition({
-    double spacing,
-    Widget divider,
+    double? spacing,
+    Widget? divider,
     this.translation = 32.0,
   }) : super(
           spacing: spacing,
@@ -305,7 +323,7 @@ class SlideFadeFloatingSearchBarTransition
       translation,
       0.0,
       Curves.easeIn.transform(t),
-    );
+    )!;
 
     return super.buildTransition(
       Transform.translate(
